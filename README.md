@@ -24,6 +24,8 @@
 ├── web/                # UI (React; admin/CRM/POS)
 ├── infra/
 │   ├── docker-compose.yml
+│   ├── db/
+│   │   └── init/       # Skema + seed SQL (auto-run bila DB baru)
 │   ├── reverse-proxy/  # (Opsyenal) Nginx/Traefik
 │   └── backup/         # Skrip dump DB, dsb.
 ├── db/
@@ -59,6 +61,7 @@ services:
       POSTGRES_DB: app
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d app"]
       interval: 10s
@@ -109,7 +112,7 @@ volumes:
   uploads:
 ```
 
-* **Postgres**: Gunakan env `POSTGRES_*` rasmi; volume untuk data persisten.
+* **Postgres**: Gunakan env `POSTGRES_*` rasmi; volume untuk data persisten. Direktori `infra/db/init` dimount ke `docker-entrypoint-initdb.d` supaya **skema + seed** dimasukkan automatik bila volume `db_data` kosong.
 * **Redis**: Simpan AOF dan jalankan jobs (BullMQ) untuk reminder 1/20/30 hari.
 * `bot_store`: elak hilang sesi Baileys bila container restart. (Baileys gunakan protokol WhatsApp Web, bukan pelayar automasi.)
 
@@ -173,18 +176,41 @@ docker compose logs -f db api bot web
 
 ## 6) Seed Database & Migrasi
 
-* Jika `api` menyediakan skrip migrasi (cth. `npm run migrate`), jalankan dalam container:
+* **Auto-init:** bila kontena `db` pertama kali naik (volume baharu), fail dalam `infra/db/init/*.sql` akan dijalankan – mencipta jadual CRM/Tiket/POS dan memasukkan contoh produk + pelanggan.
+* **Manual/dev:** untuk jalankan semula skema pada DB sedia ada:
 
 ```bash
-docker compose exec api npm run migrate
-docker compose exec api npm run seed
+# dari direktori infra/
+cat db/init/01-schema.sql | docker compose exec -T db psql -U app -d app
+cat db/init/02-seed.sql   | docker compose exec -T db psql -U app -d app
 ```
 
-> (Atau gunakan `psql`/init scripts Postgres mengikut amalan Docker Official Image).
+API turut melakukan `CREATE TABLE IF NOT EXISTS` dan seed asas (`products`) ketika boot (selamat untuk ulang run).
 
 ---
 
-## 7) Pairing WhatsApp (Baileys)
+## 7) Endpoint Utama (Ringkasan)
+
+| Modul | Endpoint | Kaedah | Fungsi |
+| --- | --- | --- | --- |
+| Kesihatan | `/health` | GET | Semak status API ⇄ DB ⇄ Redis |
+| CRM | `/customers` | GET | Senarai pelanggan (nama, telefon, emel) |
+| Tiket | `/tickets` | GET | Senarai tiket + info pelanggan + status |
+|  | `/tickets/:id` | GET | Butiran tiket (nota & log kemaskini) |
+|  | `/tickets` | POST | Cipta tiket baharu + auto-schedule reminder 1/20/30 hari |
+|  | `/tickets/:id` | PATCH | Ubah status/anggaran/nota, tambah log |
+| POS | `/products` | GET | Senarai produk/inventori |
+|  | `/products` | POST | Tambah/kemaskini produk berdasarkan SKU |
+|  | `/products/:id` | PATCH | Ubah nama/harga/stok |
+|  | `/sales` | GET | Senarai jualan + item + pelanggan |
+|  | `/sales` | POST | Rekod transaksi POS, tolak stok, jana invois `INV-YYYY-#####` |
+| Jobs | `/jobs/reminders` | POST | (Opsyenal) Trigger manual penjadualan BullMQ |
+
+Semua permintaan `POST/PATCH` menggunakan `application/json` dan divalidasi oleh **Zod**.
+
+---
+
+## 8) Pairing WhatsApp (Baileys)
 
 1. Pastikan `bot` sedang berjalan.
 2. **Cara A (terminal):** Tonton log dan imbas QR yang dipaparkan oleh Baileys:
@@ -199,7 +225,7 @@ docker compose exec api npm run seed
 
 ---
 
-## 8) Akses UI & API
+## 9) Akses UI & API
 
 * **Web UI:** [http://localhost:3000](http://localhost:3000) (React / react-admin).
 * **API:** [http://localhost:8080](http://localhost:8080) (REST).
@@ -207,7 +233,7 @@ docker compose exec api npm run seed
 
 ---
 
-## 9) Cetak Resit Thermal (QZ Tray)
+## 10) Cetak Resit Thermal (QZ Tray)
 
 Untuk cetakan resit POS terus dari pelayar (silent print / ESC-POS):
 
@@ -219,14 +245,14 @@ Untuk cetakan resit POS terus dari pelayar (silent print / ESC-POS):
 
 ---
 
-## 10) (Opsyenal) Pembayaran Malaysia
+## 11) (Opsyenal) Pembayaran Malaysia
 
 * **FPX (Stripe):** aktifkan di Stripe Dashboard & integrasi `Elements/Checkout`. Hanya untuk peniaga berdaftar di Malaysia.
 * **DuitNow QR (PayNet):** ikut spesifikasi **Merchant-Presented QR** (statik/dinamik) melalui pemeroleh (acquirer) anda.
 
 ---
 
-## 11) Reminder Jobs (1/20/30 hari)
+## 12) Reminder Jobs (1/20/30 hari)
 
 * Konfigurasi **BullMQ** (Redis) di `api` untuk menjadualkan notifikasi *follow-up* (idempotent, retry/backoff).
 * Pastikan `REDIS_URL` betul dan worker berjalan.
