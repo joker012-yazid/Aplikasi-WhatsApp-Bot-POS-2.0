@@ -1,0 +1,55 @@
+CREATE TABLE IF NOT EXISTS customers (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT UNIQUE NOT NULL,
+  email TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+  id SERIAL PRIMARY KEY,
+  ticket_code TEXT UNIQUE,
+  customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+  device TEXT NOT NULL,
+  issue TEXT NOT NULL,
+  estimate NUMERIC(12,2),
+  status TEXT NOT NULL DEFAULT 'DROPPED_OFF',
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ticket_updates (
+  id SERIAL PRIMARY KEY,
+  ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS products (
+  id SERIAL PRIMARY KEY,
+  sku TEXT UNIQUE,
+  name TEXT NOT NULL,
+  price NUMERIC(12,2) NOT NULL,
+  stock INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS sales (
+  id SERIAL PRIMARY KEY,
+  invoice_number TEXT UNIQUE,
+  customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+  total NUMERIC(12,2) NOT NULL,
+  payment_method TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS sale_items (
+  id SERIAL PRIMARY KEY,
+  sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  quantity INTEGER NOT NULL,
+  unit_price NUMERIC(12,2) NOT NULL,
+  line_total NUMERIC(12,2) NOT NULL
+);
