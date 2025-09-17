@@ -19,18 +19,15 @@
 
 ```
 .
-├── api/                # Backend (Node.js: REST API untuk POS/CRM/Tiket)
+├── api/                # Backend (Node.js + Express untuk POS/CRM/Tiket)
 ├── bot/                # Servis WhatsApp (Baileys)
-├── web/                # UI (React; admin/CRM/POS)
+├── web/                # UI (React SPA untuk operasi harian)
 ├── infra/
 │   ├── docker-compose.yml
-│   ├── db/
-│   │   └── init/       # Skema + seed SQL (auto-run bila DB baru)
-│   ├── reverse-proxy/  # (Opsyenal) Nginx/Traefik
-│   └── backup/         # Skrip dump DB, dsb.
-├── db/
-│   └── seed/           # Seed data (produk contoh, role)
-└── .env.example
+│   └── db/
+│       └── init/       # Skema + seed SQL (auto-run bila DB baru)
+├── .env.example        # Contoh konfigurasi persekitaran
+└── README.md
 ```
 
 ---
@@ -125,40 +122,34 @@ volumes:
 ```
 # API
 PORT=8080
-BASE_URL=http://localhost:8080
-
-# Database
-DB_HOST=db
-DB_PORT=5432
-DB_USER=app
-DB_PASSWORD=app
-DB_NAME=app
 DATABASE_URL=postgresql://app:app@db:5432/app
-
-# Redis (BullMQ)
 REDIS_URL=redis://redis:6379
 
 # WhatsApp (Baileys)
-WA_DEVICE_NAME=POS-CRM-BOT
+BOT_PORT=8081
 WA_STORE_PATH=/app/.wa_store
 
 # Web
 WEB_PORT=3000
 VITE_API_URL=http://localhost:8080
+VITE_BOT_URL=http://localhost:8081
 
 # (Opsyenal) SSO - Keycloak OIDC
-OIDC_ISSUER_URL=http://keycloak.local/realms/myrealm
-OIDC_CLIENT_ID=web-spa
-OIDC_REDIRECT_URI=http://localhost:3000/oidc/callback
+# OIDC_ISSUER_URL=http://keycloak.local/realms/myrealm
+# OIDC_CLIENT_ID=web-spa
+# OIDC_REDIRECT_URI=http://localhost:3000/oidc/callback
 ```
 
-* OIDC untuk SSO menggunakan **Keycloak** (OpenID Connect).
+* Pembolehubah OIDC dikekalkan sebagai rujukan jika anda mahu sambung kepada **Keycloak** pada masa akan datang.
 
 ---
 
 ## 5) Pasang & Jalankan (Quick Start)
 
 ```bash
+# 0) sediakan fail persekitaran
+cp .env.example .env
+
 # 1) dari root repo
 cd infra
 
@@ -218,7 +209,7 @@ Semua permintaan `POST/PATCH` menggunakan `application/json` dan divalidasi oleh
    ```bash
    docker compose logs -f bot
    ```
-3. **Cara B (UI):** Buka **Web UI → Settings → WhatsApp Pairing** dan imbas QR yang dirender oleh endpoint bot.
+3. **Cara B (UI):** Buka **Web UI** dan gunakan seksyen **"WhatsApp Pairing"** pada papan pemuka untuk imbas kod QR yang dihasilkan bot.
 4. Selepas berjaya, sesi disimpan dalam volume `bot_store`.
 
 > Baileys menggunakan **WebSocket** (bukan Selenium/Chrome) dan kerap ada **breaking changes** — pastikan versi dipin & ikut nota migrasi repo rasmi.
@@ -227,7 +218,7 @@ Semua permintaan `POST/PATCH` menggunakan `application/json` dan divalidasi oleh
 
 ## 9) Akses UI & API
 
-* **Web UI:** [http://localhost:3000](http://localhost:3000) (React / react-admin).
+* **Web UI:** [http://localhost:3000](http://localhost:3000) (React SPA).
 * **API:** [http://localhost:8080](http://localhost:8080) (REST).
 * Login admin/staf akan bergantung pada seed/SSO.
 
